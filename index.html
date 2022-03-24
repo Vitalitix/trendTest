@@ -1,0 +1,104 @@
+<html>
+	<head>
+		<link rel="stylesheet" type="text/css" href="trend.css" />
+		<script src="https://code.highcharts.com/stock/highstock.js"></script>
+		<script src="https://code.highcharts.com/modules/exporting.js"></script>
+		<script src="https://code.highcharts.com/modules/export-data.js"></script>
+		<script src="https://code.highcharts.com/stock/indicators/indicators.js"></script>
+		<script src="https://code.highcharts.com/stock/indicators/trendline.js"></script>
+	</head>
+	<body>
+		<br /><br /><br />
+		<div id="container"></div>
+		<label for="running">Run value:</label>
+		<input type="number" name="running" id="running" value="0.2" step="0.1" onchange="runChanged(this.value)" />
+		<br />
+		<label for="threshold">Threshold:</label>
+		<input type="number" name="threshold" id="threshold" value="40" step="10" onchange="setThreshold(this.value)" />
+	</body>
+</html>
+<script type="module">
+	let label = null
+
+	window.runChanged = (v) => {
+		getData()
+	}
+
+	window.setThreshold = (v) => {
+		label?.destroy()
+		label = null
+		const s1 = the_chart.get('threshold')
+		s1?.remove()
+		const s2 = the_chart.get('trendline')
+		const d1 = s2.data[0]
+		const dn = { x: s2.data[s2.data.length - 1].x, y: (d1.y * (100 + parseInt(v))) / 100 }
+		the_chart.addSeries({
+			id: 'threshold',
+			name: 'Threshold',
+			color: 'red',
+			data: [d1, dn],
+		})
+		if (dn.y < s2.data[s2.data.length - 1].y) {
+			label = the_chart.renderer.label('Anomaly detected', 200, 0).attr({ fill: '#FF0000aa', padding: 10, r: 5, zIndex: 8 }).css({ color: '#FFFFFF', fontSize: '5em' }).add()
+		}
+	}
+
+	const the_chart = Highcharts.chart('container', {
+		exporting: {},
+		credits: {
+			enabled: false,
+		},
+		chart: {
+			zoomType: 'x',
+		},
+		title: {
+			text: '',
+		},
+		xAxis: {
+			type: 'datetime',
+		},
+		yAxis: [
+			{
+				title: '',
+			},
+		],
+	})
+
+	function getData() {
+		the_chart.get('RMS')?.remove()
+		the_chart.get('threshold')?.remove()
+		the_chart.get('trendline')?.remove()
+		the_chart.render()
+		const runVal = document.getElementById('running').value
+		const threshold = document.getElementById('threshold').value
+		fetch('./data.json')
+			.then((response) => response.json())
+			.then((data) => {
+				let last_val = data.find((p) => p.val > runVal).val
+				const rms = {
+					name: 'RMS',
+					id: 'RMS',
+					data: data.map((s, i) => {
+						if (s.val > runVal) {
+							last_val = s.val
+							if (i < 65) return { x: s.TimeTicks, y: s.val }
+							else if (i < 130) return { x: s.TimeTicks, y: s.val * 1.2 }
+							else return { x: s.TimeTicks, y: s.val * 1.4 }
+						} else {
+							return { x: s.TimeTicks, y: last_val }
+						}
+					}),
+				}
+				the_chart.addSeries(rms, false)
+				the_chart.addSeries({
+					id: 'trendline',
+					type: 'trendline',
+					showInLegend: true,
+					color: '#7cb5ec',
+					linkedTo: 'RMS',
+				})
+				setThreshold(document.getElementById('threshold').value)
+			})
+	}
+	getData()
+</script>

@@ -1,0 +1,7 @@
+#container {
+  max-width: 90%;
+}
+
+input[type="number" i] {
+	width: 40px;
+}
